@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
+import 'screens/habits/habits_screen.dart';
+import 'screens/goals/goals_screen.dart';
+import 'screens/journal/journal_screen.dart';
+import 'screens/library/library_screen.dart';
 
 void main() {
   runApp(const AscendApp());
@@ -23,12 +27,161 @@ class AscendApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
-        '/home': (context) => const HomeScreen(),
+        '/home': (context) => const MainShell(),
       },
     );
   }
 }
 
+// Main shell with bottom nav
+class MainShell extends StatefulWidget {
+  const MainShell({super.key});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  int _currentIndex = 0;
+
+  final List<Widget> _screens = [
+    const HomeScreen(),
+    const GoalsScreen(),
+    const JournalScreen(),
+    const LibraryScreen(),
+    const HabitsScreen(),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFFAF6F0),
+      body: _screens[_currentIndex],
+      bottomNavigationBar: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF2E3230).withOpacity(0.08),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _NavItem(
+                  icon: Icons.wb_sunny_outlined,
+                  activeIcon: Icons.wb_sunny,
+                  label: 'Today',
+                  index: 0,
+                  currentIndex: _currentIndex,
+                  onTap: (i) => setState(() => _currentIndex = i),
+                ),
+                _NavItem(
+                  icon: Icons.track_changes_outlined,
+                  activeIcon: Icons.track_changes,
+                  label: 'Goals',
+                  index: 1,
+                  currentIndex: _currentIndex,
+                  onTap: (i) => setState(() => _currentIndex = i),
+                ),
+                _NavItem(
+                  icon: Icons.edit_note_outlined,
+                  activeIcon: Icons.edit_note,
+                  label: 'Journal',
+                  index: 2,
+                  currentIndex: _currentIndex,
+                  onTap: (i) => setState(() => _currentIndex = i),
+                ),
+                _NavItem(
+                  icon: Icons.menu_book_outlined,
+                  activeIcon: Icons.menu_book,
+                  label: 'Library',
+                  index: 3,
+                  currentIndex: _currentIndex,
+                  onTap: (i) => setState(() => _currentIndex = i),
+                ),
+                _NavItem(
+                  icon: Icons.self_improvement_outlined,
+                  activeIcon: Icons.self_improvement,
+                  label: 'Coach',
+                  index: 4,
+                  currentIndex: _currentIndex,
+                  onTap: (i) => setState(() => _currentIndex = i),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavItem extends StatelessWidget {
+  final IconData icon;
+  final IconData activeIcon;
+  final String label;
+  final int index;
+  final int currentIndex;
+  final Function(int) onTap;
+
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+    required this.index,
+    required this.currentIndex,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool isActive = index == currentIndex;
+    return GestureDetector(
+      onTap: () => onTap(index),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive
+              ? const Color(0xFF4A7C59).withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isActive ? activeIcon : icon,
+              color: isActive
+                  ? const Color(0xFF4A7C59)
+                  : const Color(0xFF2E3230).withOpacity(0.4),
+              size: 24,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: GoogleFonts.nunitoSans(
+                color: isActive
+                    ? const Color(0xFF4A7C59)
+                    : const Color(0xFF2E3230).withOpacity(0.4),
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Splash screen stays here
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -50,32 +203,25 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-
     _fadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
-
     _startAnimations();
   }
 
   Future<void> _startAnimations() async {
     await Future.delayed(const Duration(milliseconds: 300));
     _fadeController.forward();
-
     await Future.delayed(const Duration(milliseconds: 800));
     await _typeText(_title, isTitle: true);
-
     await Future.delayed(const Duration(milliseconds: 300));
     setState(() => _showTagline = true);
     await _typeText(_tagline, isTitle: false);
-
-    // Auto navigate to onboarding after splash
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
       Navigator.pushReplacementNamed(context, '/onboarding');
