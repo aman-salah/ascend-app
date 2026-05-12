@@ -40,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       );
     } else {
       // Navigate to home
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
@@ -63,7 +63,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: GestureDetector(
-                  onTap: () => Navigator.pushReplacementNamed(context, '/home'),
+                  onTap: () => Navigator.pushReplacementNamed(context, '/login'),
                   child: Text(
                     'Skip',
                     style: GoogleFonts.nunitoSans(

@@ -1,5 +1,8 @@
+import 'package:ascend/screens/auth/login_screen.dart';
+import 'package:ascend/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/habits/habits_screen.dart';
@@ -7,7 +10,14 @@ import 'screens/goals/goals_screen.dart';
 import 'screens/journal/journal_screen.dart';
 import 'screens/library/library_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  await Supabase.initialize(
+    url: SupabaseService.supabaseUrl,
+    anonKey: SupabaseService.supabaseAnonKey,
+  );
+
   runApp(const AscendApp());
 }
 
@@ -27,6 +37,7 @@ class AscendApp extends StatelessWidget {
       routes: {
         '/': (context) => const SplashScreen(),
         '/onboarding': (context) => const OnboardingScreen(),
+        '/login': (context) => const LoginScreen(),
         '/home': (context) => const MainShell(),
       },
     );
@@ -223,8 +234,15 @@ class _SplashScreenState extends State<SplashScreen>
     setState(() => _showTagline = true);
     await _typeText(_tagline, isTitle: false);
     await Future.delayed(const Duration(milliseconds: 800));
+    await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
-      Navigator.pushReplacementNamed(context, '/onboarding');
+      // Check if user is already logged in
+      final session = SupabaseService.client.auth.currentSession;
+      if (session != null) {
+        Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        Navigator.pushReplacementNamed(context, '/onboarding');
+      }
     }
   }
 
