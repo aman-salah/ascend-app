@@ -1,3 +1,4 @@
+import 'package:ascend/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'dart:math' as math;
@@ -45,9 +46,29 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Icon(
-                    Icons.notifications_outlined,
-                    color: const Color(0xFF2E3230).withOpacity(0.5),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.notifications_outlined,
+                        color: const Color(0xFF2E3230).withOpacity(0.5),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () async {
+                          await SupabaseService.client.auth.signOut();
+                          if (context.mounted) {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/onboarding',
+                            );
+                          }
+                        },
+                        child: Icon(
+                          Icons.logout,
+                          color: const Color(0xFF2E3230).withOpacity(0.5),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
