@@ -40,32 +40,40 @@ class _LoginScreenState extends State<LoginScreen> {
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
         );
+
+        if (mounted) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
       } else {
         // Sign up
-        final response = await SupabaseService.client.auth.signUp(
+        final res = await SupabaseService.client.auth.signUp(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
+          data: {'name': _nameController.text.trim()},
         );
+        
+        // If Supabase auto-logged the user in (because email confirmations are off), sign them out
+        // so they can manually log in as requested.
+        if (res.session != null) {
+          await SupabaseService.client.auth.signOut();
+        }
 
-        // Create profile
-        if (response.user != null) {
-          await SupabaseService.client.from('profiles').insert({
-            'id': response.user!.id,
-            'name': _nameController.text.trim(),
-            'email': _emailController.text.trim(),
+        if (mounted) {
+          setState(() {
+            _errorMessage = 'Account created successfully! Please sign in.';
+            _isLogin = true; // Switch to login screen
+            // We do NOT clear the text fields so the user can just click "Sign In"
           });
         }
-      }
-
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/home');
       }
     } on AuthException catch (e) {
       setState(() => _errorMessage = e.message);
     } catch (e) {
       setState(() => _errorMessage = 'Something went wrong. Try again.');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

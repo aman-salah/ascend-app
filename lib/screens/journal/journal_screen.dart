@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../models/journal_entry.dart';
+import '../../services/journal_service.dart';
+import '../../services/supabase_service.dart';
 
 class JournalScreen extends StatefulWidget {
   const JournalScreen({super.key});
@@ -10,10 +13,21 @@ class JournalScreen extends StatefulWidget {
 
 class _JournalScreenState extends State<JournalScreen> {
   int _selectedMood = 2;
-  final List<String> _energyTags = ['restless', 'foggy', 'calm'];
-  final List<String> _selectedTags = ['calm'];
+  final List<String> _energyTags = [
+    'restless',
+    'foggy',
+    'calm',
+    'inspired',
+    'anxious',
+    'energised',
+  ];
+  final List<String> _selectedTags = [];
   final TextEditingController _writingController = TextEditingController();
   int _selectedMode = 0;
+  bool _isSaving = false;
+  bool _isLoading = true;
+  bool _isFocusMode = false;
+  List<JournalEntry> _entries = [];
 
   final List<Map<String, String>> _writingModes = [
     {
@@ -33,24 +47,118 @@ class _JournalScreenState extends State<JournalScreen> {
     },
   ];
 
-  final List<Map<String, String>> _recentEntries = [
-    {
-      'date': 'OCT 24',
-      'title': 'Morning Clarity Sessions',
-      'preview':
-          'The forest trail was particularly quiet today. I felt a profound sense...',
-      'mood': 'INSPIRED',
-      'words': '842 WORDS',
-    },
-    {
-      'date': 'OCT 22',
-      'title': 'Evening Reflections',
-      'preview':
-          'Grateful for the feedback on the project today. It wasn\'t easy to hear.',
-      'mood': 'CALM',
-      'words': '319 WORDS',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadEntries();
+  }
+
+  Future<void> _loadEntries() async {
+    setState(() => _isLoading = true);
+    try {
+      final entries = await JournalService.getEntries();
+      setState(() => _entries = entries);
+    } catch (e) {
+      debugPrint('Error loading entries: $e');
+    } finally {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _saveEntry() async {
+    if (_writingController.text.trim().isEmpty) return;
+
+    setState(() => _isSaving = true);
+
+    try {
+      final wordCount = _writingController.text.trim().split(' ').length;
+
+      final entry = JournalEntry(
+        id: '',
+        userId: SupabaseService.client.auth.currentUser!.id,
+        writingMode: _writingModes[_selectedMode]['title']!,
+        content: _writingController.text.trim(),
+        mood: _selectedMood,
+        energyTags: _selectedTags,
+        wordCount: wordCount,
+        createdAt: DateTime.now(),
+      );
+
+      await JournalService.saveEntry(entry);
+
+      // Clear form
+      setState(() {
+        _writingController.clear();
+        _selectedMood = 2;
+        _selectedTags.clear();
+      });
+
+      // Reload entries
+      await _loadEntries();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Entry saved! 🌱',
+              style: GoogleFonts.nunitoSans(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF4A7C59),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error saving entry: $e');
+    } finally {
+      setState(() => _isSaving = false);
+    }
+  }
+
+  Future<void> _deleteEntry(String id) async {
+    try {
+      await JournalService.deleteEntry(id);
+      await _loadEntries();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Entry deleted',
+              style: GoogleFonts.nunitoSans(color: Colors.white),
+            ),
+            backgroundColor: const Color(0xFF4A7C59),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error deleting entry: $e');
+    }
+  }
+
+  String _formatDate(DateTime date) {
+    final months = [
+      'JAN',
+      'FEB',
+      'MAR',
+      'APR',
+      'MAY',
+      'JUN',
+      'JUL',
+      'AUG',
+      'SEP',
+      'OCT',
+      'NOV',
+      'DEC',
+    ];
+    return '${months[date.month - 1]} ${date.day}';
+  }
 
   @override
   void dispose() {
@@ -68,8 +176,9 @@ class _JournalScreenState extends State<JournalScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header
-              Row(
+              if (!_isFocusMode) ...[
+                // Header
+                Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Row(
@@ -107,7 +216,6 @@ class _JournalScreenState extends State<JournalScreen> {
 
               const SizedBox(height: 24),
 
-              // Title
               Text(
                 "Today's Writing",
                 style: GoogleFonts.literata(
@@ -191,44 +299,45 @@ class _JournalScreenState extends State<JournalScreen> {
               }),
 
               const SizedBox(height: 16),
+              ],
 
-              // Date + Focus mode
+              // Date and Focus Mode Toggle
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    'Wednesday, Oct 25',
+                    _formatDate(DateTime.now()),
                     style: GoogleFonts.nunitoSans(
                       color: const Color(0xFF2E3230).withOpacity(0.5),
                       fontSize: 13,
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF4A7C59).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.remove_red_eye_outlined,
-                          size: 14,
-                          color: Color(0xFF4A7C59),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Focus Mode',
-                          style: GoogleFonts.nunitoSans(
-                            color: const Color(0xFF4A7C59),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                  GestureDetector(
+                    onTap: () => setState(() => _isFocusMode = !_isFocusMode),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _isFocusMode ? const Color(0xFF4A7C59) : const Color(0xFF4A7C59).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isFocusMode ? Icons.fullscreen_exit : Icons.fullscreen,
+                            size: 16,
+                            color: _isFocusMode ? Colors.white : const Color(0xFF4A7C59),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 4),
+                          Text(
+                            _isFocusMode ? 'Exit Focus' : 'Focus Mode',
+                            style: GoogleFonts.nunitoSans(
+                              color: _isFocusMode ? Colors.white : const Color(0xFF4A7C59),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -251,31 +360,46 @@ class _JournalScreenState extends State<JournalScreen> {
                     ),
                   ],
                 ),
-                child: TextField(
-                  controller: _writingController,
-                  maxLines: 6,
-                  decoration: InputDecoration(
-                    hintText:
-                        "What's on your mind today? Start writing your reflection here...",
-                    hintStyle: GoogleFonts.literata(
-                      color: const Color(0xFF2E3230).withOpacity(0.3),
-                      fontSize: 14,
-                      fontStyle: FontStyle.italic,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    TextField(
+                      controller: _writingController,
+                      maxLines: _isFocusMode ? null : 6,
+                      minLines: _isFocusMode ? 15 : 6,
+                      onChanged: (val) => setState(() {}),
+                      decoration: InputDecoration(
+                        hintText: "What's on your mind today? Start writing...",
+                        hintStyle: GoogleFonts.literata(
+                          color: const Color(0xFF2E3230).withOpacity(0.3),
+                          fontSize: 14,
+                          fontStyle: FontStyle.italic,
+                        ),
+                        border: InputBorder.none,
+                      ),
+                      style: GoogleFonts.literata(
+                        color: const Color(0xFF2E3230),
+                        fontSize: 14,
+                        height: 1.6,
+                      ),
                     ),
-                    border: InputBorder.none,
-                  ),
-                  style: GoogleFonts.literata(
-                    color: const Color(0xFF2E3230),
-                    fontSize: 14,
-                    height: 1.6,
-                  ),
+                    // Word count
+                    Text(
+                      '${_writingController.text.trim().isEmpty ? 0 : _writingController.text.trim().split(' ').length} words',
+                      style: GoogleFonts.nunitoSans(
+                        color: const Color(0xFF2E3230).withOpacity(0.3),
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
               const SizedBox(height: 20),
 
-              // Mood check
-              Text(
+              if (!_isFocusMode) ...[
+                // Mood check
+                Text(
                 'How are you feeling?',
                 style: GoogleFonts.literata(
                   color: const Color(0xFF2E3230),
@@ -286,7 +410,6 @@ class _JournalScreenState extends State<JournalScreen> {
 
               const SizedBox(height: 12),
 
-              // Mood emojis
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
@@ -325,7 +448,6 @@ class _JournalScreenState extends State<JournalScreen> {
 
               const SizedBox(height: 16),
 
-              // Energy markers
               Text(
                 'ENERGY MARKERS',
                 style: GoogleFonts.nunitoSans(
@@ -340,6 +462,7 @@ class _JournalScreenState extends State<JournalScreen> {
 
               Wrap(
                 spacing: 8,
+                runSpacing: 8,
                 children: _energyTags.map((tag) {
                   final isSelected = _selectedTags.contains(tag);
                   return GestureDetector(
@@ -383,59 +506,14 @@ class _JournalScreenState extends State<JournalScreen> {
                 }).toList(),
               ),
 
-              const SizedBox(height: 20),
-
-              // Motivation card
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4A7C59).withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF4A7C59).withOpacity(0.2),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Keep going, Alex! 🌱',
-                      style: GoogleFonts.literata(
-                        color: const Color(0xFF2E3230),
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      "You've journaled 5 days straight. Self-reflection is the soil of personal growth.",
-                      style: GoogleFonts.nunitoSans(
-                        color: const Color(0xFF2E3230).withOpacity(0.6),
-                        fontSize: 13,
-                        height: 1.5,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '"The goal is not perfection, but the courage to keep coming back."',
-                      style: GoogleFonts.literata(
-                        color: const Color(0xFF4A7C59),
-                        fontSize: 12,
-                        fontStyle: FontStyle.italic,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 16),
+                const SizedBox(height: 24),
+              ],
 
               // Save button
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () {},
+                  onPressed: _isSaving ? null : _saveEntry,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4A7C59),
                     shape: RoundedRectangleBorder(
@@ -443,22 +521,32 @@ class _JournalScreenState extends State<JournalScreen> {
                     ),
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: Text(
-                    'Save Entry',
-                    style: GoogleFonts.nunitoSans(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : Text(
+                          'Save Entry',
+                          style: GoogleFonts.nunitoSans(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                 ),
               ),
 
-              const SizedBox(height: 24),
+              if (!_isFocusMode) ...[
+                const SizedBox(height: 24),
 
-              // Recent history
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                // Recent history
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     'Recent History',
@@ -469,7 +557,7 @@ class _JournalScreenState extends State<JournalScreen> {
                     ),
                   ),
                   Text(
-                    'View Archive →',
+                    'View All →',
                     style: GoogleFonts.nunitoSans(
                       color: const Color(0xFF4A7C59),
                       fontSize: 13,
@@ -481,7 +569,53 @@ class _JournalScreenState extends State<JournalScreen> {
 
               const SizedBox(height: 12),
 
-              ..._recentEntries.map((entry) => _HistoryCard(entry: entry)),
+              // Loading or entries
+              if (_isLoading)
+                const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF4A7C59)),
+                )
+              else if (_entries.isEmpty)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    children: [
+                      const Text('📓', style: TextStyle(fontSize: 40)),
+                      const SizedBox(height: 12),
+                      Text(
+                        'No entries yet',
+                        style: GoogleFonts.literata(
+                          color: const Color(0xFF2E3230),
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Write your first entry above',
+                        style: GoogleFonts.nunitoSans(
+                          color: const Color(0xFF2E3230).withOpacity(0.5),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                ..._entries
+                    .take(5)
+                    .map(
+                      (entry) => _HistoryCard(
+                        entry: entry,
+                        formatDate: _formatDate,
+                        onDelete: () => _deleteEntry(entry.id),
+                      ),
+                    ),
+              ],
 
               const SizedBox(height: 20),
             ],
@@ -492,7 +626,6 @@ class _JournalScreenState extends State<JournalScreen> {
   }
 }
 
-// Mood emoji widget
 class _MoodEmoji extends StatelessWidget {
   final String emoji;
   final int index;
@@ -531,11 +664,21 @@ class _MoodEmoji extends StatelessWidget {
   }
 }
 
-// History card widget
 class _HistoryCard extends StatelessWidget {
-  final Map<String, String> entry;
+  final JournalEntry entry;
+  final String Function(DateTime) formatDate;
+  final VoidCallback onDelete;
 
-  const _HistoryCard({required this.entry});
+  const _HistoryCard({
+    required this.entry,
+    required this.formatDate,
+    required this.onDelete,
+  });
+
+  String get _moodEmoji {
+    const emojis = ['😔', '😕', '😊', '😄', '🤩'];
+    return emojis[entry.mood.clamp(0, 4)];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -560,7 +703,7 @@ class _HistoryCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                entry['date']!,
+                formatDate(entry.createdAt),
                 style: GoogleFonts.nunitoSans(
                   color: const Color(0xFF2E3230).withOpacity(0.4),
                   fontSize: 11,
@@ -568,11 +711,61 @@ class _HistoryCard extends StatelessWidget {
                   letterSpacing: 1,
                 ),
               ),
+              Row(
+                children: [
+                  Text(_moodEmoji, style: const TextStyle(fontSize: 16)),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => AlertDialog(
+                          title: const Text('Delete Entry'),
+                          content: const Text('Are you sure you want to delete this journal entry?'),
+                          backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context),
+                              child: Text(
+                                'Cancel',
+                                style: GoogleFonts.nunitoSans(
+                                  color: const Color(0xFF2E3230),
+                                ),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.pop(context);
+                                onDelete();
+                              },
+                              child: Text(
+                                'Delete',
+                                style: GoogleFonts.nunitoSans(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                    child: Icon(
+                      Icons.delete_outline,
+                      size: 20,
+                      color: const Color(0xFF2E3230).withOpacity(0.4),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
           const SizedBox(height: 6),
           Text(
-            entry['title']!,
+            entry.writingMode,
             style: GoogleFonts.literata(
               color: const Color(0xFF2E3230),
               fontSize: 15,
@@ -581,7 +774,7 @@ class _HistoryCard extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            entry['preview']!,
+            entry.content,
             style: GoogleFonts.nunitoSans(
               color: const Color(0xFF2E3230).withOpacity(0.5),
               fontSize: 12,
@@ -593,27 +786,28 @@ class _HistoryCard extends StatelessWidget {
           const SizedBox(height: 10),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4A7C59).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  entry['mood']!,
-                  style: GoogleFonts.nunitoSans(
-                    color: const Color(0xFF4A7C59),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
+              if (entry.energyTags.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF4A7C59).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    entry.energyTags.first.toUpperCase(),
+                    style: GoogleFonts.nunitoSans(
+                      color: const Color(0xFF4A7C59),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-              ),
               const SizedBox(width: 8),
               Text(
-                entry['words']!,
+                '${entry.wordCount} WORDS',
                 style: GoogleFonts.nunitoSans(
                   color: const Color(0xFF2E3230).withOpacity(0.4),
                   fontSize: 11,
