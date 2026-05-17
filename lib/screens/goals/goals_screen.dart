@@ -78,63 +78,72 @@ class _GoalsScreenState extends State<GoalsScreen> {
               color: const Color(0xFF4A7C59),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 38,
-                              height: 38,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4A7C59),
-                                borderRadius: BorderRadius.circular(12),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF4A7C59),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
                               ),
-                              child: const Icon(
-                                Icons.person,
-                                color: Colors.white,
-                                size: 20,
+                              const SizedBox(width: 10),
+                              Text(
+                                'Ascend',
+                                style: GoogleFonts.literata(
+                                  color: const Color(0xFF2E3230),
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Ascend',
-                              style: GoogleFonts.literata(
-                                color: const Color(0xFF2E3230),
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Icon(
-                          Icons.notifications_outlined,
-                          color: const Color(0xFF2E3230).withOpacity(0.5),
-                        ),
-                      ],
+                            ],
+                          ),
+                          Icon(
+                            Icons.notifications_outlined,
+                            color: const Color(0xFF2E3230).withOpacity(0.5),
+                          ),
+                        ],
+                      ),
                     ),
 
                     const SizedBox(height: 24),
 
-                    Text(
-                      'Life Areas',
-                      style: GoogleFonts.literata(
-                        color: const Color(0xFF2E3230),
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Life Areas',
+                        style: GoogleFonts.literata(
+                          color: const Color(0xFF2E3230),
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      'Cultivate balance across your core foundations.',
-                      style: GoogleFonts.nunitoSans(
-                        color: const Color(0xFF2E3230).withOpacity(0.5),
-                        fontSize: 13,
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: Text(
+                        'Cultivate balance across your core foundations.',
+                        style: GoogleFonts.nunitoSans(
+                          color: const Color(0xFF2E3230).withOpacity(0.5),
+                          fontSize: 13,
+                        ),
                       ),
                     ),
 
@@ -143,6 +152,8 @@ class _GoalsScreenState extends State<GoalsScreen> {
                     // Life area cards
                     SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      clipBehavior: Clip.none,
                       child: Row(
                         children:
                             [
@@ -229,39 +240,45 @@ class _GoalsScreenState extends State<GoalsScreen> {
                         ),
                       )
                     else if (_filteredGoals.isEmpty)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Column(
-                          children: [
-                            const Text('🎯', style: TextStyle(fontSize: 40)),
-                            const SizedBox(height: 12),
-                            Text(
-                              'No goals yet',
-                              style: GoogleFonts.literata(
-                                color: const Color(0xFF2E3230),
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(24),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            children: [
+                              const Text('🎯', style: TextStyle(fontSize: 40)),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No goals yet',
+                                style: GoogleFonts.literata(
+                                  color: const Color(0xFF2E3230),
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Tap + New Goal to add your first goal',
-                              style: GoogleFonts.nunitoSans(
-                                color: const Color(0xFF2E3230).withOpacity(0.5),
-                                fontSize: 13,
+                              const SizedBox(height: 4),
+                              Text(
+                                'Tap + New Goal to add your first goal',
+                                style: GoogleFonts.nunitoSans(
+                                  color: const Color(0xFF2E3230).withOpacity(0.5),
+                                  fontSize: 13,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       )
                     else
                       ..._filteredGoals.map(
-                        (goal) => _GoalCard(goal: goal, onDeleted: _loadGoals),
+                        (goal) => Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: _GoalCard(goal: goal, onDeleted: _loadGoals),
+                        ),
                       ),
 
                     const SizedBox(height: 100),
