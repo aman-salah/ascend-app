@@ -33,6 +33,18 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() => _isLoading = false);
     }
   }
+  
+  void _showEditHabitSheet(Habit habit) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) => _AddHabitSheet(
+      onHabitAdded: _loadHabits,
+      existingHabit: habit,
+    ),
+  );
+}
 
   Future<void> _toggleHabit(Habit habit) async {
     await HabitService.toggleHabit(habit.id, !habit.isCompleted);
@@ -293,6 +305,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       (habit) => _RitualTile(
                         habit: habit,
                         onToggle: () => _toggleHabit(habit),
+                        onEdit: () => _showEditHabitSheet(habit),
+                        onDelete: () async {
+                          await HabitService.deleteHabit(habit.id);
+                          _loadHabits();
+                        },
                       ),
                     ),
                   ],
@@ -314,6 +331,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       (habit) => _RitualTile(
                         habit: habit,
                         onToggle: () => _toggleHabit(habit),
+                        onEdit: () => _showEditHabitSheet(habit),
+                        onDelete: () async {
+                          await HabitService.deleteHabit(habit.id);
+                          _loadHabits();
+                        },
                       ),
                     ),
                   ],
@@ -335,6 +357,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       (habit) => _RitualTile(
                         habit: habit,
                         onToggle: () => _toggleHabit(habit),
+                        onEdit: () => _showEditHabitSheet(habit),
+                        onDelete: () async {
+                          await HabitService.deleteHabit(habit.id);
+                          _loadHabits();
+                        },
                       ),
                     ),
                   ],
@@ -392,8 +419,15 @@ class _RingPainter extends CustomPainter {
 class _RitualTile extends StatelessWidget {
   final Habit habit;
   final VoidCallback onToggle;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
 
-  const _RitualTile({required this.habit, required this.onToggle});
+  const _RitualTile({
+    required this.habit,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -416,38 +450,191 @@ class _RitualTile extends StatelessWidget {
           Text(habit.emoji, style: const TextStyle(fontSize: 24)),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              habit.title,
-              style: GoogleFonts.nunitoSans(
-                color: const Color(0xFF2E3230),
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  habit.title,
+                  style: GoogleFonts.nunitoSans(
+                    color: const Color(0xFF2E3230),
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                // Streak display
+                if (habit.streak > 0)
+                  Row(
+                    children: [
+                      const Text('🔥', style: TextStyle(fontSize: 12)),
+                      const SizedBox(width: 3),
+                      Text(
+                        '${habit.streak} day streak',
+                        style: GoogleFonts.nunitoSans(
+                          color: const Color(0xFF705C30),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  Text(
+                    'Start your streak today',
+                    style: GoogleFonts.nunitoSans(
+                      color: const Color(0xFF2E3230).withOpacity(0.3),
+                      fontSize: 11,
+                    ),
+                  ),
+              ],
             ),
           ),
+
+          // Edit + delete
           GestureDetector(
-            onTap: onToggle,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              width: 26,
-              height: 26,
-              decoration: BoxDecoration(
-                color: habit.isCompleted
-                    ? const Color(0xFF4A7C59)
-                    : Colors.transparent,
-                border: Border.all(
+            onLongPress: () {
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.transparent,
+                builder: (context) => _HabitOptionsSheet(
+                  habit: habit,
+                  onEdit: onEdit,
+                  onDelete: onDelete,
+                ),
+              );
+            },
+            child: GestureDetector(
+              onTap: onToggle,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
                   color: habit.isCompleted
                       ? const Color(0xFF4A7C59)
-                      : const Color(0xFF2E3230).withOpacity(0.2),
-                  width: 2,
+                      : Colors.transparent,
+                  border: Border.all(
+                    color: habit.isCompleted
+                        ? const Color(0xFF4A7C59)
+                        : const Color(0xFF2E3230).withOpacity(0.2),
+                    width: 2,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                borderRadius: BorderRadius.circular(8),
+                child: habit.isCompleted
+                    ? const Icon(Icons.check, color: Colors.white, size: 16)
+                    : null,
               ),
-              child: habit.isCompleted
-                  ? const Icon(Icons.check, color: Colors.white, size: 16)
-                  : null,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// Habit options sheet
+class _HabitOptionsSheet extends StatelessWidget {
+  final Habit habit;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _HabitOptionsSheet({
+    required this.habit,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFFFAF6F0),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFF2E3230).withOpacity(0.15),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            habit.title,
+            style: GoogleFonts.literata(
+              color: const Color(0xFF2E3230),
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Edit option
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(context);
+              onEdit();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.edit_outlined, color: Color(0xFF4A7C59)),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Edit Habit',
+                    style: GoogleFonts.nunitoSans(
+                      color: const Color(0xFF2E3230),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // Delete option
+          GestureDetector(
+            onTap: () {
+              Navigator.pop(context);
+              onDelete();
+            },
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.delete_outline, color: Colors.red),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Delete Habit',
+                    style: GoogleFonts.nunitoSans(
+                      color: Colors.red,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -457,17 +644,18 @@ class _RitualTile extends StatelessWidget {
 // Add Habit Bottom Sheet
 class _AddHabitSheet extends StatefulWidget {
   final VoidCallback onHabitAdded;
+  final Habit? existingHabit;
 
-  const _AddHabitSheet({required this.onHabitAdded});
+  const _AddHabitSheet({required this.onHabitAdded, this.existingHabit});
 
   @override
   State<_AddHabitSheet> createState() => _AddHabitSheetState();
 }
 
 class _AddHabitSheetState extends State<_AddHabitSheet> {
-  final TextEditingController _titleController = TextEditingController();
-  String _selectedEmoji = '✅';
-  String _selectedTime = 'morning';
+  late TextEditingController _titleController;
+  late String _selectedEmoji;
+  late String _selectedTime;
   bool _isLoading = false;
 
   final List<String> _emojis = [
@@ -486,35 +674,55 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Pre-fill if editing
+    _titleController = TextEditingController(
+      text: widget.existingHabit?.title ?? '',
+    );
+    _selectedEmoji = widget.existingHabit?.emoji ?? '✅';
+    _selectedTime = widget.existingHabit?.timeOfDay ?? 'morning';
+  }
+
+  @override
   void dispose() {
     _titleController.dispose();
     super.dispose();
   }
 
+  bool get _isEditing => widget.existingHabit != null;
+
   Future<void> _saveHabit() async {
     if (_titleController.text.trim().isEmpty) return;
-
     setState(() => _isLoading = true);
 
     try {
-      final habit = Habit(
-        id: '',
-        userId: SupabaseService.client.auth.currentUser!.id,
-        title: _titleController.text.trim(),
-        emoji: _selectedEmoji,
-        timeOfDay: _selectedTime,
-      );
+      if (_isEditing) {
+        // Update existing habit
+        await HabitService.editHabit(
+          widget.existingHabit!.id,
+          _titleController.text.trim(),
+          _selectedEmoji,
+          _selectedTime,
+        );
+      } else {
+        // Add new habit
+        final habit = Habit(
+          id: '',
+          userId: SupabaseService.client.auth.currentUser!.id,
+          title: _titleController.text.trim(),
+          emoji: _selectedEmoji,
+          timeOfDay: _selectedTime,
+        );
+        await HabitService.addHabit(habit);
+      }
 
-      await HabitService.addHabit(habit);
       widget.onHabitAdded();
-
       if (mounted) Navigator.pop(context);
     } catch (e) {
       debugPrint('Error saving habit: $e');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      setState(() => _isLoading = false);
     }
   }
 
@@ -535,7 +743,6 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
           Center(
             child: Container(
               width: 40,
@@ -546,21 +753,16 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           Text(
-            'New Habit',
+            _isEditing ? 'Edit Habit' : 'New Habit',
             style: GoogleFonts.literata(
               color: const Color(0xFF2E3230),
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // Habit title
           Container(
             decoration: BoxDecoration(
               color: Colors.white,
@@ -598,10 +800,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // Emoji picker
           Text(
             'PICK AN EMOJI',
             style: GoogleFonts.nunitoSans(
@@ -611,9 +810,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               letterSpacing: 1,
             ),
           ),
-
           const SizedBox(height: 10),
-
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -642,10 +839,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               );
             }).toList(),
           ),
-
           const SizedBox(height: 20),
-
-          // Time of day
           Text(
             'TIME OF DAY',
             style: GoogleFonts.nunitoSans(
@@ -655,9 +849,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               letterSpacing: 1,
             ),
           ),
-
           const SizedBox(height: 10),
-
           Row(
             children: ['morning', 'afternoon', 'evening'].map((time) {
               final isSelected = _selectedTime == time;
@@ -695,10 +887,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
               );
             }).toList(),
           ),
-
           const SizedBox(height: 24),
-
-          // Save button
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
@@ -720,7 +909,7 @@ class _AddHabitSheetState extends State<_AddHabitSheet> {
                       ),
                     )
                   : Text(
-                      'Save Habit',
+                      _isEditing ? 'Update Habit' : 'Save Habit',
                       style: GoogleFonts.nunitoSans(
                         color: Colors.white,
                         fontSize: 16,
