@@ -1,8 +1,12 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'blocs/auth/auth_bloc.dart';
+import 'blocs/auth/auth_event.dart';
+import 'blocs/auth/auth_state.dart';
 import 'package:ascend/screens/auth/login_screen.dart';
 import 'package:ascend/services/supabase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/habits/habits_screen.dart';
@@ -26,20 +30,23 @@ class AscendApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Ascend',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A7C59)),
-        useMaterial3: true,
+    return BlocProvider(
+      create: (context) => AuthBloc(),
+      child: MaterialApp(
+        title: 'Ascend',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF4A7C59)),
+          useMaterial3: true,
+        ),
+        initialRoute: '/',
+        routes: {
+          '/': (context) => const SplashScreen(),
+          '/onboarding': (context) => const OnboardingScreen(),
+          '/login': (context) => const LoginScreen(),
+          '/home': (context) => const MainShell(),
+        },
       ),
-      initialRoute: '/',
-      routes: {
-        '/': (context) => const SplashScreen(),
-        '/onboarding': (context) => const OnboardingScreen(),
-        '/login': (context) => const LoginScreen(),
-        '/home': (context) => const MainShell(),
-      },
     );
   }
 }
@@ -237,12 +244,7 @@ class _SplashScreenState extends State<SplashScreen>
     await Future.delayed(const Duration(milliseconds: 800));
     if (mounted) {
       // Check if user is already logged in
-      final session = SupabaseService.client.auth.currentSession;
-      if (session != null) {
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        Navigator.pushReplacementNamed(context, '/onboarding');
-      }
+      context.read<AuthBloc>().add(AuthCheckSessionEvent());
     }
   }
 
@@ -269,40 +271,49 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAF6F0),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            FadeTransition(
-              opacity: _fadeAnimation,
-              child: const Text('🌱', style: TextStyle(fontSize: 64)),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              _displayedTitle,
-              style: GoogleFonts.literata(
-                color: const Color(0xFF4A7C59),
-                fontSize: 42,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 4,
+    return BlocListener<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthAuthenticatedState) {
+          Navigator.pushReplacementNamed(context, '/home');
+        } else if (state is AuthUnauthenticatedState) {
+          Navigator.pushReplacementNamed(context, '/onboarding');
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFFAF6F0),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FadeTransition(
+                opacity: _fadeAnimation,
+                child: const Text('🌱', style: TextStyle(fontSize: 64)),
               ),
-            ),
-            const SizedBox(height: 12),
-            AnimatedOpacity(
-              opacity: _showTagline ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 300),
-              child: Text(
-                _displayedTagline,
-                style: GoogleFonts.nunitoSans(
-                  color: const Color(0xFF705C30),
-                  fontSize: 16,
-                  letterSpacing: 1.5,
+              const SizedBox(height: 24),
+              Text(
+                _displayedTitle,
+                style: GoogleFonts.literata(
+                  color: const Color(0xFF4A7C59),
+                  fontSize: 42,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 4,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              AnimatedOpacity(
+                opacity: _showTagline ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 300),
+                child: Text(
+                  _displayedTagline,
+                  style: GoogleFonts.nunitoSans(
+                    color: const Color(0xFF705C30),
+                    fontSize: 16,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

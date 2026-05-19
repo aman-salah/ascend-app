@@ -1,6 +1,10 @@
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../blocs/auth/auth_bloc.dart';
+import '../../blocs/auth/auth_event.dart';
+import '../../blocs/auth/auth_state.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import '../../services/supabase_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -28,347 +32,331 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleAuth() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      if (_isLogin) {
-        // Login
-        await SupabaseService.client.auth.signInWithPassword(
+    if (_isLogin) {
+      context.read<AuthBloc>().add(
+        AuthLoginEvent(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
-        );
-
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      } else {
-        // Sign up
-        final res = await SupabaseService.client.auth.signUp(
+        ),
+      );
+    } else {
+      context.read<AuthBloc>().add(
+        AuthSignUpEvent(
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
-          data: {'name': _nameController.text.trim()},
-        );
-        
-        // If Supabase auto-logged the user in (because email confirmations are off), sign them out
-        // so they can manually log in as requested.
-        if (res.session != null) {
-          await SupabaseService.client.auth.signOut();
-        }
-
-        if (mounted) {
-          setState(() {
-            _errorMessage = 'Account created successfully! Please sign in.';
-            _isLogin = true; // Switch to login screen
-            // We do NOT clear the text fields so the user can just click "Sign In"
-          });
-        }
-      }
-    } on AuthException catch (e) {
-      setState(() => _errorMessage = e.message);
-    } catch (e) {
-      setState(() => _errorMessage = 'Something went wrong. Try again.');
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+          name: _nameController.text.trim(),
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAF6F0),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 40),
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, state) {
+        if (state is AuthAuthenticatedState) {
+          Navigator.pushReplacementNamed(context, '/home');
+        } else if (state is AuthErrorState) {
+          setState(() => _errorMessage = state.message);
+        }
+      },
+      builder: (context, state) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFFAF6F0),
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 40),
 
-              // Logo
-              Center(
-                child: Column(
-                  children: [
-                    const Text('🌱', style: TextStyle(fontSize: 56)),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Ascend',
-                      style: GoogleFonts.literata(
-                        color: const Color(0xFF4A7C59),
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Show up. Every day.',
-                      style: GoogleFonts.nunitoSans(
-                        color: const Color(0xFF705C30),
-                        fontSize: 14,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 48),
-
-              // Toggle login/signup
-              Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF2E3230).withOpacity(0.05),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isLogin = true),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: _isLogin
-                                ? const Color(0xFF4A7C59)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Sign In',
-                              style: GoogleFonts.nunitoSans(
-                                color: _isLogin
-                                    ? Colors.white
-                                    : const Color(0xFF2E3230).withOpacity(0.4),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
+                  // Logo
+                  Center(
+                    child: Column(
+                      children: [
+                        const Text('🌱', style: TextStyle(fontSize: 56)),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Ascend',
+                          style: GoogleFonts.literata(
+                            color: const Color(0xFF4A7C59),
+                            fontSize: 36,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 3,
                           ),
                         ),
-                      ),
-                    ),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => _isLogin = false),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: !_isLogin
-                                ? const Color(0xFF4A7C59)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Create Account',
-                              style: GoogleFonts.nunitoSans(
-                                color: !_isLogin
-                                    ? Colors.white
-                                    : const Color(0xFF2E3230).withOpacity(0.4),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 28),
-
-              // Name field (signup only)
-              if (!_isLogin) ...[
-                _InputField(
-                  controller: _nameController,
-                  label: 'YOUR NAME',
-                  hint: 'e.g. Alex',
-                  icon: Icons.person_outline,
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // Email field
-              _InputField(
-                controller: _emailController,
-                label: 'EMAIL',
-                hint: 'your@email.com',
-                icon: Icons.email_outlined,
-                isEmail: true,
-              ),
-
-              const SizedBox(height: 16),
-
-              // Password field
-              _PasswordField(
-                controller: _passwordController,
-                obscure: _obscurePassword,
-                onToggle: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-
-              // Error message
-              if (_errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF705C30).withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.error_outline,
-                        color: Color(0xFF705C30),
-                        size: 16,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
+                        const SizedBox(height: 4),
+                        Text(
+                          'Show up. Every day.',
                           style: GoogleFonts.nunitoSans(
                             color: const Color(0xFF705C30),
+                            fontSize: 14,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 48),
+
+                  // Toggle login/signup
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2E3230).withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _isLogin = true),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: _isLogin
+                                    ? const Color(0xFF4A7C59)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Sign In',
+                                  style: GoogleFonts.nunitoSans(
+                                    color: _isLogin
+                                        ? Colors.white
+                                        : const Color(
+                                            0xFF2E3230,
+                                          ).withOpacity(0.4),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () => setState(() => _isLogin = false),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              decoration: BoxDecoration(
+                                color: !_isLogin
+                                    ? const Color(0xFF4A7C59)
+                                    : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'Create Account',
+                                  style: GoogleFonts.nunitoSans(
+                                    color: !_isLogin
+                                        ? Colors.white
+                                        : const Color(
+                                            0xFF2E3230,
+                                          ).withOpacity(0.4),
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // Name field (signup only)
+                  if (!_isLogin) ...[
+                    _InputField(
+                      controller: _nameController,
+                      label: 'YOUR NAME',
+                      hint: 'e.g. Alex',
+                      icon: Icons.person_outline,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
+                  // Email field
+                  _InputField(
+                    controller: _emailController,
+                    label: 'EMAIL',
+                    hint: 'your@email.com',
+                    icon: Icons.email_outlined,
+                    isEmail: true,
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Password field
+                  _PasswordField(
+                    controller: _passwordController,
+                    obscure: _obscurePassword,
+                    onToggle: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+
+                  // Error message
+                  if (_errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF705C30).withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.error_outline,
+                            color: Color(0xFF705C30),
+                            size: 16,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _errorMessage!,
+                              style: GoogleFonts.nunitoSans(
+                                color: const Color(0xFF705C30),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+
+                  const SizedBox(height: 28),
+
+                  // Submit button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isLoading ? null : _handleAuth,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4A7C59),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(
+                                color: Colors.white,
+                                strokeWidth: 2,
+                              ),
+                            )
+                          : Text(
+                              _isLogin ? 'Sign In' : 'Create Account',
+                              style: GoogleFonts.nunitoSans(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // Divider
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: const Color(0xFF2E3230).withOpacity(0.1),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          'or',
+                          style: GoogleFonts.nunitoSans(
+                            color: const Color(0xFF2E3230).withOpacity(0.4),
                             fontSize: 13,
                           ),
                         ),
                       ),
+                      Expanded(
+                        child: Divider(
+                          color: const Color(0xFF2E3230).withOpacity(0.1),
+                        ),
+                      ),
                     ],
                   ),
-                ),
-              ],
 
-              const SizedBox(height: 28),
+                  const SizedBox(height: 20),
 
-              // Submit button
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _handleAuth,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4A7C59),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : Text(
-                          _isLogin ? 'Sign In' : 'Create Account',
-                          style: GoogleFonts.nunitoSans(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
+                  // Google sign in button
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () {},
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(
+                          color: const Color(0xFF2E3230).withOpacity(0.15),
                         ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // Divider
-              Row(
-                children: [
-                  Expanded(
-                    child: Divider(
-                      color: const Color(0xFF2E3230).withOpacity(0.1),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      'or',
-                      style: GoogleFonts.nunitoSans(
-                        color: const Color(0xFF2E3230).withOpacity(0.4),
-                        fontSize: 13,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Colors.white,
+                      ),
+                      icon: const Text(
+                        'G',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF4A7C59),
+                        ),
+                      ),
+                      label: Text(
+                        'Continue with Google',
+                        style: GoogleFonts.nunitoSans(
+                          color: const Color(0xFF2E3230),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
-                  Expanded(
-                    child: Divider(
-                      color: const Color(0xFF2E3230).withOpacity(0.1),
+
+                  const SizedBox(height: 32),
+
+                  // Footer
+                  Center(
+                    child: Text(
+                      'By continuing you agree to our Terms & Privacy Policy',
+                      textAlign: TextAlign.center,
+                      style: GoogleFonts.nunitoSans(
+                        color: const Color(0xFF2E3230).withOpacity(0.3),
+                        fontSize: 11,
+                      ),
                     ),
                   ),
                 ],
               ),
-
-              const SizedBox(height: 20),
-
-              // Google sign in button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(
-                      color: const Color(0xFF2E3230).withOpacity(0.15),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    backgroundColor: Colors.white,
-                  ),
-                  icon: const Text(
-                    'G',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF4A7C59),
-                    ),
-                  ),
-                  label: Text(
-                    'Continue with Google',
-                    style: GoogleFonts.nunitoSans(
-                      color: const Color(0xFF2E3230),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 32),
-
-              // Footer
-              Center(
-                child: Text(
-                  'By continuing you agree to our Terms & Privacy Policy',
-                  textAlign: TextAlign.center,
-                  style: GoogleFonts.nunitoSans(
-                    color: const Color(0xFF2E3230).withOpacity(0.3),
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
