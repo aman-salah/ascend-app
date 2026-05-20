@@ -1,10 +1,11 @@
-import 'package:ascend/models/milestone.dart';
-import 'package:ascend/services/milestone_service.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../blocs/goal/goal_bloc.dart';
+import '../../blocs/goal/goal_event.dart';
+import '../../blocs/goal/goal_state.dart';
 import '../../models/goal.dart';
-import '../../services/goal_service.dart';
-import '../../services/supabase_service.dart';
+import '../../models/milestone.dart';
 
 class GoalsScreen extends StatefulWidget {
   const GoalsScreen({super.key});
@@ -14,310 +15,279 @@ class GoalsScreen extends StatefulWidget {
 }
 
 class _GoalsScreenState extends State<GoalsScreen> {
-  List<Goal> _goals = [];
-  bool _isLoading = true;
   String _selectedArea = 'All';
-  final List<String> _lifeAreas = [
-    'All',
-    'Health',
-    'Career',
-    'Relationships',
-    'Finance',
-    'Personal',
-  ];
 
   @override
   void initState() {
     super.initState();
-    _loadGoals();
-  }
-
-  Future<void> _loadGoals() async {
-    setState(() => _isLoading = true);
-    try {
-      final goals = await GoalService.getGoals();
-      setState(() => _goals = goals);
-    } catch (e) {
-      debugPrint('Error loading goals: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  List<Goal> get _filteredGoals {
-    if (_selectedArea == 'All') return _goals;
-    return _goals.where((g) => g.lifeArea == _selectedArea).toList();
-  }
-
-  Map<String, int> get _lifeAreaCounts {
-    final counts = <String, int>{};
-    for (final goal in _goals) {
-      counts[goal.lifeArea] = (counts[goal.lifeArea] ?? 0) + 1;
-    }
-    return counts;
-  }
-
-  void _showAddGoalSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _AddGoalSheet(onGoalAdded: _loadGoals),
-    );
+    context.read<GoalBloc>().add(LoadGoalsEvent());
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAF6F0),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            RefreshIndicator(
-              onRefresh: _loadGoals,
-              color: const Color(0xFF4A7C59),
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF4A7C59),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                'Ascend',
-                                style: GoogleFonts.literata(
-                                  color: const Color(0xFF2E3230),
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          Icon(
-                            Icons.notifications_outlined,
-                            color: const Color(0xFF2E3230).withOpacity(0.5),
-                          ),
-                        ],
-                      ),
-                    ),
+    return BlocBuilder<GoalBloc, GoalState>(
+      builder: (context, state) {
+        final goals = state is GoalLoadedState ? state.goals : <Goal>[];
+        final isLoading = state is GoalLoadingState;
 
-                    const SizedBox(height: 24),
+        final filteredGoals = _selectedArea == 'All'
+            ? goals
+            : goals.where((g) => g.lifeArea == _selectedArea).toList();
 
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Life Areas',
-                        style: GoogleFonts.literata(
-                          color: const Color(0xFF2E3230),
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Text(
-                        'Cultivate balance across your core foundations.',
-                        style: GoogleFonts.nunitoSans(
-                          color: const Color(0xFF2E3230).withOpacity(0.5),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
+        final lifeAreaCounts = <String, int>{};
+        for (final goal in goals) {
+          lifeAreaCounts[goal.lifeArea] =
+              (lifeAreaCounts[goal.lifeArea] ?? 0) + 1;
+        }
 
-                    const SizedBox(height: 16),
-
-                    // Life area cards
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      clipBehavior: Clip.none,
-                      child: Row(
-                        children:
-                            [
-                              'Health',
-                              'Career',
-                              'Relationships',
-                              'Finance',
-                              'Personal',
-                            ].map((area) {
-                              final count = _lifeAreaCounts[area] ?? 0;
-                              final isActive = _selectedArea == area;
-                              return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _selectedArea = area),
-                                child: Container(
-                                  margin: const EdgeInsets.only(right: 12),
-                                  padding: const EdgeInsets.all(16),
+        return Scaffold(
+          backgroundColor: const Color(0xFFFAF6F0),
+          body: SafeArea(
+            child: Stack(
+              children: [
+                RefreshIndicator(
+                  onRefresh: () async {
+                    context.read<GoalBloc>().add(LoadGoalsEvent());
+                  },
+                  color: const Color(0xFF4A7C59),
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Header
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                Container(
+                                  width: 38,
+                                  height: 38,
                                   decoration: BoxDecoration(
-                                    color: isActive
-                                        ? const Color(
-                                            0xFF4A7C59,
-                                          ).withOpacity(0.08)
-                                        : Colors.white,
+                                    color: const Color(0xFF4A7C59),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isActive
-                                          ? const Color(
-                                              0xFF4A7C59,
-                                            ).withOpacity(0.3)
-                                          : Colors.transparent,
-                                    ),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: const Color(
-                                          0xFF2E3230,
-                                        ).withOpacity(0.05),
-                                        blurRadius: 10,
-                                        offset: const Offset(0, 2),
-                                      ),
-                                    ],
                                   ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        _areaEmoji(area),
-                                        style: const TextStyle(fontSize: 28),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        area,
-                                        style: GoogleFonts.literata(
-                                          color: const Color(0xFF2E3230),
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                      Text(
-                                        '$count GOALS',
-                                        style: GoogleFonts.nunitoSans(
-                                          color: const Color(
-                                            0xFF2E3230,
-                                          ).withOpacity(0.4),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                    ],
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 20,
                                   ),
                                 ),
-                              );
-                            }).toList(),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Ascend',
+                                  style: GoogleFonts.literata(
+                                    color: const Color(0xFF2E3230),
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Icon(
+                              Icons.notifications_outlined,
+                              color: const Color(0xFF2E3230).withOpacity(0.5),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        Text(
+                          'Life Areas',
+                          style: GoogleFonts.literata(
+                            color: const Color(0xFF2E3230),
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Cultivate balance across your core foundations.',
+                          style: GoogleFonts.nunitoSans(
+                            color: const Color(0xFF2E3230).withOpacity(0.5),
+                            fontSize: 13,
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        // Life area cards
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children:
+                                [
+                                  'Health',
+                                  'Career',
+                                  'Relationships',
+                                  'Finance',
+                                  'Personal',
+                                ].map((area) {
+                                  final count = lifeAreaCounts[area] ?? 0;
+                                  final isActive = _selectedArea == area;
+                                  return GestureDetector(
+                                    onTap: () =>
+                                        setState(() => _selectedArea = area),
+                                    child: Container(
+                                      margin: const EdgeInsets.only(right: 12),
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: isActive
+                                            ? const Color(
+                                                0xFF4A7C59,
+                                              ).withOpacity(0.08)
+                                            : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isActive
+                                              ? const Color(
+                                                  0xFF4A7C59,
+                                                ).withOpacity(0.3)
+                                              : Colors.transparent,
+                                        ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: const Color(
+                                              0xFF2E3230,
+                                            ).withOpacity(0.05),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 2),
+                                          ),
+                                        ],
+                                      ),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            _areaEmoji(area),
+                                            style: const TextStyle(
+                                              fontSize: 28,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            area,
+                                            style: GoogleFonts.literata(
+                                              color: const Color(0xFF2E3230),
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                          Text(
+                                            '$count GOALS',
+                                            style: GoogleFonts.nunitoSans(
+                                              color: const Color(
+                                                0xFF2E3230,
+                                              ).withOpacity(0.4),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                }).toList(),
+                          ),
+                        ),
+
+                        const SizedBox(height: 24),
+
+                        if (isLoading)
+                          const Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF4A7C59),
+                            ),
+                          )
+                        else if (filteredGoals.isEmpty)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(24),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  '🎯',
+                                  style: TextStyle(fontSize: 40),
+                                ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No goals yet',
+                                  style: GoogleFonts.literata(
+                                    color: const Color(0xFF2E3230),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Tap + New Goal to add your first goal',
+                                  style: GoogleFonts.nunitoSans(
+                                    color: const Color(
+                                      0xFF2E3230,
+                                    ).withOpacity(0.5),
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else
+                          ...filteredGoals.map(
+                            (goal) => _GoalCard(
+                              goal: goal,
+                              milestones: state is GoalLoadedState
+                                  ? (state.milestones[goal.id] ?? [])
+                                  : [],
+                            ),
+                          ),
+
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // Floating button
+                Positioned(
+                  bottom: 20,
+                  right: 20,
+                  child: ElevatedButton.icon(
+                    onPressed: () => _showAddGoalSheet(context),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4A7C59),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      elevation: 4,
+                    ),
+                    icon: const Icon(Icons.add, color: Colors.white, size: 18),
+                    label: Text(
+                      'New Goal',
+                      style: GoogleFonts.nunitoSans(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
                       ),
                     ),
-
-                    const SizedBox(height: 24),
-
-                    // Goals list
-                    if (_isLoading)
-                      const Center(
-                        child: CircularProgressIndicator(
-                          color: Color(0xFF4A7C59),
-                        ),
-                      )
-                    else if (_filteredGoals.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            children: [
-                              const Text('🎯', style: TextStyle(fontSize: 40)),
-                              const SizedBox(height: 12),
-                              Text(
-                                'No goals yet',
-                                style: GoogleFonts.literata(
-                                  color: const Color(0xFF2E3230),
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Tap + New Goal to add your first goal',
-                                style: GoogleFonts.nunitoSans(
-                                  color: const Color(0xFF2E3230).withOpacity(0.5),
-                                  fontSize: 13,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      )
-                    else
-                      ..._filteredGoals.map(
-                        (goal) => Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 20),
-                          child: _GoalCard(goal: goal, onDeleted: _loadGoals),
-                        ),
-                      ),
-
-                    const SizedBox(height: 100),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-
-            // Floating button
-            Positioned(
-              bottom: 20,
-              right: 20,
-              child: ElevatedButton.icon(
-                onPressed: _showAddGoalSheet,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4A7C59),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 14,
-                  ),
-                  elevation: 4,
-                ),
-                icon: const Icon(Icons.add, color: Colors.white, size: 18),
-                label: Text(
-                  'New Goal',
-                  style: GoogleFonts.nunitoSans(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 15,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 
@@ -337,50 +307,33 @@ class _GoalsScreenState extends State<GoalsScreen> {
         return '🎯';
     }
   }
+
+  void _showAddGoalSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlocProvider.value(
+        value: context.read<GoalBloc>(),
+        child: const _AddGoalSheet(),
+      ),
+    );
+  }
 }
 
 // Goal Card
 class _GoalCard extends StatefulWidget {
   final Goal goal;
-  final VoidCallback onDeleted;
+  final List<Milestone> milestones;
 
-  const _GoalCard({required this.goal, required this.onDeleted});
+  const _GoalCard({required this.goal, required this.milestones});
 
   @override
   State<_GoalCard> createState() => _GoalCardState();
 }
 
 class _GoalCardState extends State<_GoalCard> {
-  List<Milestone> _milestones = [];
   bool _isExpanded = false;
-  bool _isLoading = false;
-
-  Future<void> _loadMilestones() async {
-    setState(() => _isLoading = true);
-    try {
-      final milestones = await MilestoneService.getMilestones(widget.goal.id);
-      setState(() => _milestones = milestones);
-    } catch (e) {
-      debugPrint('Error loading milestones: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  void _showAddMilestoneSheet() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _AddMilestoneSheet(
-        goalId: widget.goal.id,
-        onMilestoneAdded: () async {
-          await _loadMilestones();
-          widget.onDeleted();
-        },
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -445,10 +398,9 @@ class _GoalCardState extends State<_GoalCard> {
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () async {
-                      await GoalService.deleteGoal(widget.goal.id);
-                      widget.onDeleted();
-                    },
+                    onTap: () => context.read<GoalBloc>().add(
+                      DeleteGoalEvent(goalId: widget.goal.id),
+                    ),
                     child: Icon(
                       Icons.delete_outline,
                       color: const Color(0xFF2E3230).withOpacity(0.3),
@@ -528,10 +480,12 @@ class _GoalCardState extends State<_GoalCard> {
 
           // Milestones toggle
           GestureDetector(
-            onTap: () async {
+            onTap: () {
               setState(() => _isExpanded = !_isExpanded);
-              if (_isExpanded && _milestones.isEmpty) {
-                await _loadMilestones();
+              if (_isExpanded) {
+                context.read<GoalBloc>().add(
+                  LoadMilestonesEvent(goalId: widget.goal.id),
+                );
               }
             },
             child: Row(
@@ -561,14 +515,7 @@ class _GoalCardState extends State<_GoalCard> {
           if (_isExpanded) ...[
             const SizedBox(height: 12),
 
-            if (_isLoading)
-              const Center(
-                child: CircularProgressIndicator(
-                  color: Color(0xFF4A7C59),
-                  strokeWidth: 2,
-                ),
-              )
-            else if (_milestones.isEmpty)
+            if (widget.milestones.isEmpty)
               Text(
                 'No milestones yet. Add one below.',
                 style: GoogleFonts.nunitoSans(
@@ -577,26 +524,22 @@ class _GoalCardState extends State<_GoalCard> {
                 ),
               )
             else
-              ..._milestones.map(
+              ...widget.milestones.map(
                 (milestone) => _MilestoneTile(
                   milestone: milestone,
-                  onToggle: () async {
-                    await MilestoneService.toggleMilestone(
-                      milestone.id,
-                      !milestone.isCompleted,
-                      widget.goal.id,
-                    );
-                    await _loadMilestones();
-                    widget.onDeleted();
-                  },
-                  onDelete: () async {
-                    await MilestoneService.deleteMilestone(
-                      milestone.id,
-                      widget.goal.id,
-                    );
-                    await _loadMilestones();
-                    widget.onDeleted();
-                  },
+                  onToggle: () => context.read<GoalBloc>().add(
+                    ToggleMilestoneEvent(
+                      milestoneId: milestone.id,
+                      goalId: widget.goal.id,
+                      isCompleted: !milestone.isCompleted,
+                    ),
+                  ),
+                  onDelete: () => context.read<GoalBloc>().add(
+                    DeleteMilestoneEvent(
+                      milestoneId: milestone.id,
+                      goalId: widget.goal.id,
+                    ),
+                  ),
                 ),
               ),
 
@@ -604,7 +547,7 @@ class _GoalCardState extends State<_GoalCard> {
 
             // Add milestone button
             GestureDetector(
-              onTap: _showAddMilestoneSheet,
+              onTap: () => _showAddMilestoneSheet(context),
               child: Row(
                 children: [
                   const Icon(
@@ -626,6 +569,18 @@ class _GoalCardState extends State<_GoalCard> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  void _showAddMilestoneSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => BlocProvider.value(
+        value: context.read<GoalBloc>(),
+        child: _AddMilestoneSheet(goalId: widget.goal.id),
       ),
     );
   }
@@ -705,12 +660,7 @@ class _MilestoneTile extends StatelessWidget {
 // Add Milestone Sheet
 class _AddMilestoneSheet extends StatefulWidget {
   final String goalId;
-  final VoidCallback onMilestoneAdded;
-
-  const _AddMilestoneSheet({
-    required this.goalId,
-    required this.onMilestoneAdded,
-  });
+  const _AddMilestoneSheet({required this.goalId});
 
   @override
   State<_AddMilestoneSheet> createState() => _AddMilestoneSheetState();
@@ -718,7 +668,6 @@ class _AddMilestoneSheet extends StatefulWidget {
 
 class _AddMilestoneSheetState extends State<_AddMilestoneSheet> {
   final TextEditingController _titleController = TextEditingController();
-  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -726,27 +675,15 @@ class _AddMilestoneSheetState extends State<_AddMilestoneSheet> {
     super.dispose();
   }
 
-  Future<void> _saveMilestone() async {
+  void _saveMilestone() {
     if (_titleController.text.trim().isEmpty) return;
-    setState(() => _isLoading = true);
-
-    try {
-      final milestone = Milestone(
-        id: '',
+    context.read<GoalBloc>().add(
+      AddMilestoneEvent(
         goalId: widget.goalId,
-        userId: SupabaseService.client.auth.currentUser!.id,
         title: _titleController.text.trim(),
-        createdAt: DateTime.now(),
-      );
-
-      await MilestoneService.addMilestone(milestone);
-      if (mounted) Navigator.pop(context);
-      widget.onMilestoneAdded();
-    } catch (e) {
-      debugPrint('Error saving milestone: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+      ),
+    );
+    Navigator.pop(context);
   }
 
   @override
@@ -828,7 +765,7 @@ class _AddMilestoneSheetState extends State<_AddMilestoneSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveMilestone,
+              onPressed: _saveMilestone,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4A7C59),
                 shape: RoundedRectangleBorder(
@@ -836,23 +773,14 @@ class _AddMilestoneSheetState extends State<_AddMilestoneSheet> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      'Save Milestone',
-                      style: GoogleFonts.nunitoSans(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+              child: Text(
+                'Save Milestone',
+                style: GoogleFonts.nunitoSans(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ],
@@ -863,9 +791,7 @@ class _AddMilestoneSheetState extends State<_AddMilestoneSheet> {
 
 // Add Goal Sheet
 class _AddGoalSheet extends StatefulWidget {
-  final VoidCallback onGoalAdded;
-
-  const _AddGoalSheet({required this.onGoalAdded});
+  const _AddGoalSheet();
 
   @override
   State<_AddGoalSheet> createState() => _AddGoalSheetState();
@@ -875,7 +801,6 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descController = TextEditingController();
   String _selectedArea = 'Health';
-  bool _isLoading = false;
 
   final List<String> _areas = [
     'Health',
@@ -892,31 +817,16 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
     super.dispose();
   }
 
-  Future<void> _saveGoal() async {
+  void _saveGoal() {
     if (_titleController.text.trim().isEmpty) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final goal = Goal(
-        id: '',
-        userId: SupabaseService.client.auth.currentUser!.id,
+    context.read<GoalBloc>().add(
+      AddGoalEvent(
         title: _titleController.text.trim(),
         description: _descController.text.trim(),
         lifeArea: _selectedArea,
-        momentum: 0.0,
-        status: 'ON TRACK',
-        createdAt: DateTime.now(),
-      );
-
-      await GoalService.addGoal(goal);
-      if (mounted) Navigator.pop(context);
-      widget.onGoalAdded();
-    } catch (e) {
-      debugPrint('Error saving goal: $e');
-    } finally {
-      setState(() => _isLoading = false);
-    }
+      ),
+    );
+    Navigator.pop(context);
   }
 
   @override
@@ -946,9 +856,7 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
               ),
             ),
           ),
-
           const SizedBox(height: 20),
-
           Text(
             'New Goal',
             style: GoogleFonts.literata(
@@ -957,29 +865,20 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
               fontWeight: FontWeight.bold,
             ),
           ),
-
           const SizedBox(height: 20),
-
-          // Title
           _SheetInputField(
             controller: _titleController,
             label: 'GOAL TITLE',
             hint: 'e.g. Run a 5K by December',
           ),
-
           const SizedBox(height: 14),
-
-          // Description
           _SheetInputField(
             controller: _descController,
             label: 'DESCRIPTION',
             hint: 'e.g. Train 3 times a week',
             maxLines: 3,
           ),
-
           const SizedBox(height: 20),
-
-          // Life area
           Text(
             'LIFE AREA',
             style: GoogleFonts.nunitoSans(
@@ -989,9 +888,7 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
               letterSpacing: 1,
             ),
           ),
-
           const SizedBox(height: 8),
-
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1027,13 +924,11 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
               );
             }).toList(),
           ),
-
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _isLoading ? null : _saveGoal,
+              onPressed: _saveGoal,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF4A7C59),
                 shape: RoundedRectangleBorder(
@@ -1041,23 +936,14 @@ class _AddGoalSheetState extends State<_AddGoalSheet> {
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
-              child: _isLoading
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        color: Colors.white,
-                        strokeWidth: 2,
-                      ),
-                    )
-                  : Text(
-                      'Save Goal',
-                      style: GoogleFonts.nunitoSans(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
+              child: Text(
+                'Save Goal',
+                style: GoogleFonts.nunitoSans(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ),
         ],

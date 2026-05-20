@@ -1,3 +1,5 @@
+import 'package:ascend/blocs/goal/goal_bloc.dart';
+import 'package:ascend/blocs/habit/habit_bloc.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'blocs/auth/auth_bloc.dart';
 import 'blocs/auth/auth_event.dart';
@@ -30,8 +32,12 @@ class AscendApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) => AuthBloc(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(create: (context) => AuthBloc()),
+        BlocProvider(create: (context) => HabitBloc()),
+        BlocProvider(create: (context) => GoalBloc()),
+      ],
       child: MaterialApp(
         title: 'Ascend',
         debugShowCheckedModeBanner: false,
